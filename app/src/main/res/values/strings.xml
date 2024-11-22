@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">map</string>
+    <string-array name="course_names">
+        <item>아차산팔각정길코스</item>
+        <item>아차산중곡동코스</item>
+        <item>아차산해맞이길코스</item>
+        <item>아차산고구려정길코스</item>
+        <item>아차산구의동코스</item>
+        <item>아차산정상길코스</item>
+        <item>아차산광장동코스</item>
+        <item>아차산성길코스</item>
+    </string-array>
+</resources>
