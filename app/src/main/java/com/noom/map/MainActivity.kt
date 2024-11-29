@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private lateinit var naverMap: NaverMap
-    private lateinit var currentCourseTextView: TextView // 현재 코스를 표시하는 TextView
+    private lateinit var currentCourseTextView: TextView // 현재 코스를 표시하는 TextView!
     private var currentPath: PathOverlay? = null
     private var currentCourseIndex = -1 // 현재 선택된 코스
     private val activeMarkers = mutableListOf<Marker>() // 활성화된 마커 리스트
