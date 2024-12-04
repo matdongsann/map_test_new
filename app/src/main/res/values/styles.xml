@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="SpinnerTextStyle" parent="Widget.AppCompat.Spinner">
+        <item name="android:textColor">#FFFFFF</item> <!-- 흰색 텍스트 -->
+    </style>
+
+    <style name="SpinnerDropdownStyle" parent="Widget.AppCompat.Spinner.DropDown">
+        <item name="android:textColor">#FFFFFF</item> <!-- 흰색 텍스트 -->
+    </style>
+</resources>
