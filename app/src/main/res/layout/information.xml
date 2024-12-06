@@ -153,12 +153,10 @@
         android:spinnerMode="dropdown"
         android:textColor="#FFFFFF"
         android:visibility="visible"
-        android:popupBackground="#000000"
+        android:popupBackground="#FFFFFF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/location_tv"
-        app:layout_constraintTop_toTopOf="@id/location_tv"
-        android:theme="@style/SpinnerTextStyle"
-        android:popupTheme="@style/SpinnerDropdownStyle"/>
+        app:layout_constraintTop_toTopOf="@id/location_tv" />
 
     <TextView
         android:id="@+id/experience_tv"
@@ -183,12 +181,10 @@
         android:entries="@array/experience_items"
         android:spinnerMode="dropdown"
         android:visibility="visible"
-        android:popupBackground="#000000"
+        android:popupBackground="#FFFFFF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/experience_tv"
-        app:layout_constraintTop_toTopOf="@+id/experience_tv"
-        android:theme="@style/SpinnerTextStyle"
-        android:popupTheme="@style/SpinnerDropdownStyle"/>
+        app:layout_constraintTop_toTopOf="@+id/experience_tv" />
 
     <Button
         android:id="@+id/next_button"
@@ -263,9 +259,7 @@
         android:visibility="visible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@+id/time_tv"
-        android:popupBackground="#000000"
-        android:theme="@style/SpinnerTextStyle"
-        android:popupTheme="@style/SpinnerDropdownStyle"
+        android:popupBackground="#FFFFFF"
         />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
