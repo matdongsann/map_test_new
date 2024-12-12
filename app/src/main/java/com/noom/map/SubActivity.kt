@@ -2315,6 +2315,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sub)
 
+        currentCourseIndex = intent.getIntExtra("course_number", -1)
+
         // 현재 코스 표시 TextView 초기화
         currentCourseTextView = findViewById(R.id.current_course_text)
 
@@ -2366,7 +2368,7 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         naverMap.moveCamera(CameraUpdate.scrollTo(initialPosition))
 
         // 초기 코스 선택 Dialog
-        showInitialCourseSelectionDialog()
+        displayCourseWithIntersections(currentCourseIndex)
 
         // GPS 리스너 추가
         naverMap.addOnLocationChangeListener { location ->
