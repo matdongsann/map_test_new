@@ -1,36 +1,60 @@
 package com.noom.map
 
 import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.media.AudioAttributes
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
+import com.example.Course
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.CameraUpdate
+import com.naver.maps.map.LocationTrackingMode
 import com.naver.maps.map.MapFragment
 import com.naver.maps.map.NaverMap
 import com.naver.maps.map.OnMapReadyCallback
+import com.naver.maps.map.UiSettings
 import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.overlay.PathOverlay
-import android.widget.TextView
-import com.example.Course
+import com.naver.maps.map.util.FusedLocationSource
 
 class SubActivity : AppCompatActivity(), OnMapReadyCallback {
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1000
+        private const val CHANNEL_ID = "intersection_alert_channel"
+        private const val NOTIFICATION_ID = 1234
     }
 
+    private lateinit var locationSource: FusedLocationSource
     private lateinit var naverMap: NaverMap
     private lateinit var currentCourseTextView: TextView // 현재 코스를 표시하는 TextView!
     private var currentPath: PathOverlay? = null
     private var currentCourseIndex = -1 // 현재 선택된 코스
     private val activeMarkers = mutableListOf<Marker>() // 활성화된 마커 리스트
 
+    private var lastUserLocation: LatLng? = null
+    private var currentIntersection: LatLng? = null
+    private var isAskingForCourseChange = false
+    private lateinit var changeCourseButton: Button // 코스 변경 버튼
+
+
     // 전체코스
     private val titleCourses = listOf(
-        listOf( // 아차산팔각정길코스
+        Course(
+            name = "아차산팔각정길코스",
+            time = 26,
+            distance = 403,
+            points = listOf( // 아차산팔각정길코스
             LatLng(37.56828773085198, 127.0896713136574), // 팔각정 출발
             LatLng(37.56812745954494, 127.09012389154401), // 지점1
             LatLng(37.56815851963888, 127.09074365818617), // 지점2
@@ -38,8 +62,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.56844566450484, 127.09225796271039), // 지점4
             LatLng(37.56879827142802, 127.09357144242063), // 지점5
             LatLng(37.568964917250035, 127.09361975824189)  // 팔각정 코스 정상
+        )
         ),
-        listOf( // 아차산중곡동코스
+        Course(
+            name = "아차산중곡동코스",
+            time = 41,
+            distance = 1400,
+            points = listOf( // 아차산중곡동코스
             LatLng(37.56238784437634, 127.09617797062278), // 중곡동 출발
             LatLng(37.56225070721982, 127.09585239145795), // 지점1
             LatLng(37.56282497447187, 127.09599743740357), // 지점2
@@ -60,8 +89,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.571500432025154, 127.10269288984823), // 지점17
             LatLng(37.57195300640772, 127.10289443821448), // 지점18
             LatLng(37.572157676087585, 127.10324563543132)  // 갈림길6, 중동곡 정상
+        )
         ),
-        listOf( // 아차산해맞이길코스
+        Course(
+            name = "아차산해맞이길코스",
+            time = 27,
+            distance = 732,
+            points = listOf( // 아차산해맞이길코스
             LatLng(37.556149253255256, 127.09517684687525), // 해맞이길 출발
             LatLng(37.55627064332638, 127.09547974322237), // 지점1
             LatLng(37.55662181878015, 127.09574332338534), // 지점2
@@ -75,8 +109,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.558811436480624, 127.10091837806436), // 지점10
             LatLng(37.55921649914755, 127.1013688109583), // 지점11
             LatLng(37.55954971434981, 127.10154752012248)  // 갈림길5, 해맞이길 정상
+        )
         ),
-        listOf( // 아차산고구려정길코스(전체)
+        Course(
+            name = "아차산고구려정길코스",
+            time = 20,
+            distance = 640,
+            points = listOf( // 아차산고구려정길코스(전체)
             LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
             LatLng(37.55482922916548, 127.09800730693125), // 지점(1)
             LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -97,8 +136,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.55776093554935, 127.1018959407125), // 갈림길3, 구의동 정상
             LatLng(37.55818646296036, 127.102120045639), // 지점15
             LatLng(37.55867030411321, 127.10263283725347)  // 갈림길4, 고구려 정길 정상
+        )
         ),
-        listOf( // 아차산구의동코스
+        Course(
+            name = "아차산구의동코스",
+            time = 25,
+            distance = 794,
+            points = listOf( // 아차산구의동코스
             LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
             LatLng(37.55482922916548, 127.09800730693125), // 지점1
             LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -110,8 +154,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.55624463053826, 127.10233242727341), // 지점7
             LatLng(37.556607283902494, 127.10233009381963), // 지점8ㅁ
             LatLng(37.55776093554935, 127.1018959407125)  // 갈림길3, 구의동 정상
+        )
         ),
-        listOf( // 아차산정상길코스(전체)
+        Course(
+            name = "아차산정상길코스",
+            time = 92,
+            distance = 3400,
+            points = listOf( // 아차산정상길코스(전체)
             LatLng(37.552661018633124, 127.09957468886509), // 정상길 출발
             LatLng(37.55292223128744, 127.09966557199391), // 지점1
             LatLng(37.553387974813965, 127.1002829698098), // 지점2
@@ -172,8 +221,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.5711095117124, 127.09614107615964), // 지점53
             LatLng(37.571175011029624, 127.09592325591412), // 지점54
             LatLng(37.57105576028153, 127.09576179734566)  // 정상
+        )
         ),
-        listOf( // 아차산광장동코스
+        Course(
+            name = "아차산광장동코스",
+            time = 26,
+            distance = 769,
+            points = listOf( // 아차산광장동코스
             LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
             LatLng(37.55164343859453, 127.10157640090205), // 지점1
             LatLng(37.55170655946639, 127.10151707354679), // 지점2
@@ -211,8 +265,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.55455642966605, 127.10357501040855), // 지점34
             LatLng(37.554729665221195, 127.10381008253415), // 지점35
             LatLng(37.5549434850143, 127.10399994315316)  // 갈림길1, 광장동 코스 정상
+        )
         ),
-        listOf( // 아차산성길코스(전체)
+        Course(
+            name = "아차산성길코스",
+            time = 26,
+            distance = 801,
+            points = listOf( // 아차산성길코스(전체)
             LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
             LatLng(37.55225860528677, 127.10389436061176), // 지점1
             LatLng(37.55233754947506, 127.10377281394416), // 지점2
@@ -243,6 +302,7 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             LatLng(37.55636212174448, 127.10449139523801), // 지점26
             LatLng(37.55788978681432, 127.10395310824592)  // 갈림길2, 산성길 정상
         )
+        )
     )
 
 
@@ -251,6 +311,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
     private val ascendingCourses = listOf(
         Course(
             name = "중곡동정상 ~ 정상",
+            time = 27,
+            distance = 806,
             points = listOf( // 교차점1 (중곡동정상~정상)
                 LatLng(37.572157676087585, 127.10324563543132), // 갈림길6, 중동곡 정상
                 LatLng(37.57233586701657, 127.10296571423497), // 지점33
@@ -281,7 +343,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         //
         Course(
             name = "해맞이길정상 ~ 중곡동정상",
-            points = listOf( // 교차점2 (해맞이길정상~중곡동정상)
+            time = 37,
+            distance = 1600,
+            points = listOf(
+                // 교차점2 (해맞이길정상~중곡동정상)
                 LatLng(37.55954971434981, 127.10154752012248), // 갈림길5, 해맞이길 정상
                 LatLng(37.560065485621614, 127.10160481025713), // 지점17
                 LatLng(37.56068283294454, 127.10141324049519), // 지점18
@@ -304,6 +369,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "해맞이길정상 ~ 정상",
+            time = 65,
+            distance = 2400,
             points = listOf( // 교차점2 (해맞이길정상~정상)
                 LatLng(37.55954971434981, 127.10154752012248), // 갈림길5, 해맞이길 정상
                 LatLng(37.560065485621614, 127.10160481025713), // 지점17
@@ -351,7 +418,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         //
         Course(
             name = "고구려길정상 ~ 해맞이길정상",
-            points = listOf( // 교차점3 (고구려길정상~해맞이길정상)
+            time = 4,
+            distance = 142,
+            points = listOf(
+                // 교차점3 (고구려길정상~해맞이길정상)
                 LatLng(37.55867030411321, 127.10263283725347), // 갈림길4, 고구려 정길 정상
                 LatLng(37.5589835107233, 127.10250594086065), // 지점16
                 LatLng(37.55954971434981, 127.10154752012248), // 갈림길5, 해맞이길 정상
@@ -359,7 +429,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "고구려길정상 ~ 중곡동정상",
-            points = listOf( // 교차점3 (고구려길정상~중곡동정상)
+            time = 41,
+            distance = 1700,
+            points = listOf(
+                // 교차점3 (고구려길정상~중곡동정상)
                 LatLng(37.55867030411321, 127.10263283725347), // 갈림길4, 고구려 정길 정상
                 LatLng(37.5589835107233, 127.10250594086065), // 지점16
                 LatLng(37.55954971434981, 127.10154752012248), // 갈림길5, 해맞이길 정상
@@ -385,6 +458,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "고구려길정상 ~ 정상",
+            time = 69,
+            distance = 2500,
             points = listOf( // 교차점3 (고구려길정상~정상)
                 LatLng(37.55867030411321, 127.10263283725347), // 갈림길4, 고구려 정길 정상
                 LatLng(37.5589835107233, 127.10250594086065), // 지점16
@@ -434,6 +509,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         //
         Course(
             name = "구의동정상 ~ 고구려길정상",
+            time = 3,
+            distance = 127,
             points = listOf( // 교차점4 (구의동정상~고구려길정상)
                 LatLng(37.55776093554935, 127.1018959407125), // 갈림길3, 구의동 정상
                 LatLng(37.55818646296036, 127.102120045639), // 지점15
@@ -442,7 +519,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "구의동정상 ~ 해맞이길정상",
-            points = listOf( // 교차점4 (구의동정상~해맞이길정상)
+            time = 7,
+            distance = 263,
+            points = listOf(
+                // 교차점4 (구의동정상~해맞이길정상)
                 LatLng(37.55776093554935, 127.1018959407125), // 갈림길3, 구의동 정상
                 LatLng(37.55818646296036, 127.102120045639), // 지점15
                 LatLng(37.55867030411321, 127.10263283725347), // 갈림길4, 고구려 정길 정상
@@ -452,7 +532,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "구의동정상 ~ 중곡동정상",
-            points = listOf( // 교차점4 (구의동정상~중곡동정상)
+            time = 44,
+            distance = 1800,
+            points = listOf(
+                // 교차점4 (구의동정상~중곡동정상)
                 LatLng(37.55776093554935, 127.1018959407125), // 갈림길3, 구의동 정상
                 LatLng(37.55818646296036, 127.102120045639), // 지점15
                 LatLng(37.55776093554935, 127.1018959407125), // 갈림길3, 구의동 정상
@@ -482,6 +565,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "구의동정상 ~ 정상",
+            time = 72,
+            distance = 2600,
             points = listOf( // 교차점4 (구의동정상~정상)
                 LatLng(37.55776093554935, 127.1018959407125), // 갈림길3, 구의동 정상
                 LatLng(37.55818646296036, 127.102120045639), // 지점15
@@ -533,7 +618,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         //
         Course(
             name = "산성길정상 ~ 고구려길정상",
-            points = listOf( // 교차점5 (산성길정상~고구려길정상)
+            time = 3,
+            distance = 140,
+            points = listOf(
+                // 교차점5 (산성길정상~고구려길정상)
                 LatLng(37.55788978681432, 127.10395310824592), // 갈림길2, 산성길 정상
                 LatLng(37.558636070488284, 127.10314492135595), // 지점14
                 LatLng(37.558690332690084, 127.10291298081052), // 지점15
@@ -542,7 +630,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "산성길정상 ~ 해맞이길정상",
-            points = listOf( // 교차점5 (산성길정상~해맞이길정상)
+            time  = 8,
+            distance = 277,
+            points = listOf(
+                // 교차점5 (산성길정상~해맞이길정상)
                 LatLng(37.55788978681432, 127.10395310824592), // 갈림길2, 산성길 정상
                 LatLng(37.558636070488284, 127.10314492135595), // 지점14
                 LatLng(37.558690332690084, 127.10291298081052), // 지점15
@@ -553,7 +644,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "산성길정상 ~ 중곡동정상",
-            points = listOf( // 교차점5 (산성길정상~중곡동정상)
+            time = 45,
+            distance = 1800,
+            points = listOf(
+                // 교차점5 (산성길정상~중곡동정상)
                 LatLng(37.55788978681432, 127.10395310824592), // 갈림길2, 산성길 정상
                 LatLng(37.558636070488284, 127.10314492135595), // 지점14
                 LatLng(37.558690332690084, 127.10291298081052), // 지점15
@@ -582,6 +676,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "산성길정상 ~ 정상",
+            time = 73,
+            distance = 2600,
             points = listOf( // 교차점5 (산성길정상~정상)
                 LatLng(37.55788978681432, 127.10395310824592), // 갈림길2, 산성길 정상
                 LatLng(37.558636070488284, 127.10314492135595), // 지점14
@@ -634,6 +730,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         //
         Course(
             name = "광장동정상 ~ 산성길정상",
+            time = 7,
+            distance = 374,
             points = listOf( // 교차점6 (광장동정상~산성길정상)
                 LatLng(37.5549434850143, 127.10399994315316),  // 갈림길1, 광장동 코스 정상
                 LatLng(37.555326131358214, 127.10431453034558), // 지점25
@@ -643,7 +741,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "광장동정상 ~ 고구려길정상",
-            points = listOf( // 교차점6 (광장동정상~고구려길정상)
+            time = 11,
+            distance = 517,
+            points = listOf(
+                // 교차점6 (광장동정상~고구려길정상)
                 LatLng(37.5549434850143, 127.10399994315316),  // 갈림길1, 광장동 코스 정상
                 LatLng(37.555326131358214, 127.10431453034558), // 지점25
                 LatLng(37.55636212174448, 127.10449139523801), // 지점26
@@ -655,7 +756,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "광장동정상 ~ 해맞이길정상",
-            points = listOf( // 교차점6 (광장동정상~해맞이길정상)
+            time = 15,
+            distance = 647,
+            points = listOf(
+                // 교차점6 (광장동정상~해맞이길정상)
                 LatLng(37.5549434850143, 127.10399994315316),  // 갈림길1, 광장동 코스 정상
                 LatLng(37.555326131358214, 127.10431453034558), // 지점25
                 LatLng(37.55636212174448, 127.10449139523801), // 지점26
@@ -669,7 +773,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "광장동정상 ~ 중곡동정상",
-            points = listOf( // 교차점6 (광장동정상~중곡동정상)
+            time = 53,
+            distance = 2200,
+            points = listOf(
+                // 교차점6 (광장동정상~중곡동정상)
                 LatLng(37.5549434850143, 127.10399994315316),  // 갈림길1, 광장동 코스 정상
                 LatLng(37.555326131358214, 127.10431453034558), // 지점25
                 LatLng(37.55636212174448, 127.10449139523801), // 지점26
@@ -701,6 +808,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "광장동정상 ~ 정상",
+            time = 81,
+            distance = 3000,
             points = listOf( // 교차점6 (광장동정상~정상)
                 LatLng(37.5549434850143, 127.10399994315316),  // 갈림길1, 광장동 코스 정상
                 LatLng(37.555326131358214, 127.10431453034558), // 지점25
@@ -762,7 +871,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
     private val decendingCourses = listOf(
         Course(
             name = "광장동정상 ~ 산성실출발지점",
-            points = listOf( // 광장동정상, 아차산성길코스1(~광장동정상)
+            time = 18,
+            distance = 432,
+            points = listOf(
+                // 광장동정상, 아차산성길코스1(~광장동정상)
                 LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
                 LatLng(37.55225860528677, 127.10389436061176), // 지점1
                 LatLng(37.55233754947506, 127.10377281394416), // 지점2
@@ -793,6 +905,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "광장동정상 ~ 광장동출발지점",
+            time = 26,
+            distance = 769,
             points = listOf( // 광장동정상, (아차산광장동코스)
                 LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
                 LatLng(37.55164343859453, 127.10157640090205), // 지점1
@@ -837,7 +951,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 산성길정상
         Course(
             name = "산성길 정상 ~ 정상길출발지점",
-            points = listOf( // 아차산정상길코스1(~산성길정상)
+            time = 14,
+            distance = 757,
+            points = listOf(
+                // 아차산정상길코스1(~산성길정상)
                 LatLng(37.552661018633124, 127.09957468886509), // 정상길 출발
                 LatLng(37.55292223128744, 127.09966557199391), // 지점1
                 LatLng(37.553387974813965, 127.1002829698098), // 지점2
@@ -857,6 +974,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "산성길정상 ~ 산성길출발지점",
+            time = 20,
+            distance = 801,
             points = listOf( // 아차산성길코스(전체)
                 LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
                 LatLng(37.55225860528677, 127.10389436061176), // 지점1
@@ -891,6 +1010,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "산성길정상 ~ 광장동출발지점",
+            time = 33,
+            distance = 1100,
             points = listOf( // 아차산광장동+산성길
                 LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
                 LatLng(37.55164343859453, 127.10157640090205), // 지점1
@@ -938,7 +1059,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 구의동정상
         Course(
             name = "구의동정상 ~ 구의동출발지점(고구려코스)",
-            points = listOf( // 아차산고구려정길코스1(~구의동정상)
+            time = 14,
+            distance = 636,
+            points = listOf(
+                // 아차산고구려정길코스1(~구의동정상)
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점(1)
                 LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -961,6 +1085,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "구의동정상 ~ 구의동출발지점(구의동코스)",
+            time = 18,
+            distance = 781,
             points = listOf( // 아차산구의동코스
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점1
@@ -979,6 +1105,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 고구려정길정상
         Course(
             name  = "고구려정길정상 ~ 구의동출발지점(고구려코스)",
+            time = 16,
+            distance = 756,
             points = listOf( // 아차산고구려정길코스(전체)
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점(1)
@@ -1004,6 +1132,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "고구려정길정상 ~ 구의동출발지점(구의동코스)",
+            time = 21,
+            distance = 908,
             points = listOf( // 아차산구의동코스+고구려정길(2)
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점1
@@ -1022,7 +1152,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "고구려정길정상 ~ 정상길출발지점",
-            points = listOf( // 아차산정상길코스1(~산성길정상)+아차산정상길코스2
+            time = 17,
+            distance = 898,
+            points = listOf(
+                // 아차산정상길코스1(~산성길정상)+아차산정상길코스2
                 LatLng(37.552661018633124, 127.09957468886509), // 정상길 출발
                 LatLng(37.55292223128744, 127.09966557199391), // 지점1
                 LatLng(37.553387974813965, 127.1002829698098), // 지점2
@@ -1045,7 +1178,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "고구려정길정상 ~ 산성길출발지점",
-            points = listOf( // 아차산성길코스(전체)+아차산정상길코스2
+            time = 23,
+            distance = 931,
+            points = listOf(
+                // 아차산성길코스(전체)+아차산정상길코스2
                 LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
                 LatLng(37.55225860528677, 127.10389436061176), // 지점1
                 LatLng(37.55233754947506, 127.10377281394416), // 지점2
@@ -1082,7 +1218,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "고구려정길정상 ~ 광장동출발지점",
-            points = listOf( // 아차산광장동+산성길+아차산정상길코스2
+            time = 37,
+            distance = 1300,
+            points = listOf(
+                // 아차산광장동+산성길+아차산정상길코스2
                 LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
                 LatLng(37.55164343859453, 127.10157640090205), // 지점1
                 LatLng(37.55170655946639, 127.10151707354679), // 지점2
@@ -1132,6 +1271,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 해맞이길정상
         Course(
             name = "해맞이길정상 ~ 해맞이길출발지점",
+            time = 27,
+            distance = 732,
             points = listOf( // 아차산해맞이길코스
                 LatLng(37.556149253255256, 127.09517684687525), // 해맞이길 출발
                 LatLng(37.55627064332638, 127.09547974322237), // 지점1
@@ -1150,7 +1291,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "해맞이길정상 ~ 구의동출발지점(고구려코스)",
-            points = listOf( // 아차산고구려정길코스(전체)+아차산정상길코스3
+            time = 20,
+            distance = 905,
+            points = listOf(
+                // 아차산고구려정길코스(전체)+아차산정상길코스3
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점(1)
                 LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -1178,7 +1322,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "해맞이길정상 ~ 구의동출발지점(구의동코스)",
-            points = listOf( // 아차산구의동코스+고구려정길(2)+아차산정상길코스3
+            time = 24,
+            distance = 1100,
+            points = listOf(
+                // 아차산구의동코스+고구려정길(2)+아차산정상길코스3
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점1
                 LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -1198,7 +1345,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "해맞이길정상 ~ 정상길출발지점",
-            points = listOf( // 아차산정상길코스1(~산성길정상)+아차산정상길코스2+아차산정상길코스3
+            time = 20,
+            distance = 1000,
+            points = listOf(
+                // 아차산정상길코스1(~산성길정상)+아차산정상길코스2+아차산정상길코스3
                 LatLng(37.552661018633124, 127.09957468886509), // 정상길 출발
                 LatLng(37.55292223128744, 127.09966557199391), // 지점1
                 LatLng(37.553387974813965, 127.1002829698098), // 지점2
@@ -1223,7 +1373,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "해맞이길 정상 ~ 산성길 출발지점",
-            points = listOf( // 아차산성길코스(전체)+아차산정상길코스2+아차산정상길코스3
+            time = 26,
+            distance = 1100,
+            points = listOf(
+                // 아차산성길코스(전체)+아차산정상길코스2+아차산정상길코스3
                 LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
                 LatLng(37.55225860528677, 127.10389436061176), // 지점1
                 LatLng(37.55233754947506, 127.10377281394416), // 지점2
@@ -1263,7 +1416,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "해맞이길정상 ~ 광장동출발지점",
-            points = listOf( // 아차산광장동+산성길+아차산정상길코스2+아차산정상길코스3
+            time = 40,
+            distance = 1400,
+            points = listOf(
+                // 아차산광장동+산성길+아차산정상길코스2+아차산정상길코스3
                 LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
                 LatLng(37.55164343859453, 127.10157640090205), // 지점1
                 LatLng(37.55170655946639, 127.10151707354679), // 지점2
@@ -1315,6 +1471,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 중곡동정상
         Course(
             name = "중곡동정상 ~ 중곡동출발지점",
+            time = 31,
+            distance = 1400,
             points = listOf( // 아차산중곡동코스
                 LatLng(37.56238784437634, 127.09617797062278), // 중곡동 출발
                 LatLng(37.56225070721982, 127.09585239145795), // 지점1
@@ -1340,7 +1498,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "중곡동정상 ~ 해맞이길출발지점",
-            points = listOf( // 아차산해맞이길코스+아차산정상길코스4
+            time = 54,
+            distance = 2300,
+            points = listOf(
+                // 아차산해맞이길코스+아차산정상길코스4
                 LatLng(37.556149253255256, 127.09517684687525), // 해맞이길 출발
                 LatLng(37.55627064332638, 127.09547974322237), // 지점1
                 LatLng(37.55662181878015, 127.09574332338534), // 지점2
@@ -1375,7 +1536,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "중곡동정상 ~ 구의동출발지점(고구려코스)",
-            points = listOf( // 아차산고구려정길코스(전체)+아차산정상길코스3+아차산정상길코스4
+            time = 56,
+            distance = 2500,
+            points = listOf(
+                // 아차산고구려정길코스(전체)+아차산정상길코스3+아차산정상길코스4
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점(1)
                 LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -1419,7 +1583,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "중곡동정상 ~ 구의동출발지점(구의동코스)",
-            points = listOf( // 아차산구의동코스+고구려정길(2)+아차산정상길코스3+아차산정상길코스4
+            time = 61,
+            distance = 2600,
+            points = listOf(
+                // 아차산구의동코스+고구려정길(2)+아차산정상길코스3+아차산정상길코스4
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점1
                 LatLng(37.55528834181234, 127.09848323511196), // 고구려정길 출발
@@ -1456,7 +1623,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "중곡동정상 ~ 정상길출발지점",
-            points = listOf( // 아차산정상길코스1(~산성길정상)+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4
+            time = 56,
+            distance = 2600,
+            points = listOf(
+                // 아차산정상길코스1(~산성길정상)+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4
                 LatLng(37.552661018633124, 127.09957468886509), // 정상길 출발
                 LatLng(37.55292223128744, 127.09966557199391), // 지점1
                 LatLng(37.553387974813965, 127.1002829698098), // 지점2
@@ -1498,7 +1668,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "중곡동정상 ~ 산성길출발지점",
-            points = listOf( // 아차산성길코스(전체)+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4
+            time = 63,
+            distance = 2600,
+            points = listOf(
+                // 아차산성길코스(전체)+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4
                 LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
                 LatLng(37.55225860528677, 127.10389436061176), // 지점1
                 LatLng(37.55233754947506, 127.10377281394416), // 지점2
@@ -1555,7 +1728,10 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "중곡동정상 ~ 광장동출발지점",
-            points = listOf( // 아차산광장동+산성길+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4
+            time = 76,
+            distance = 3000,
+            points = listOf(
+                // 아차산광장동+산성길+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4
                 LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
                 LatLng(37.55164343859453, 127.10157640090205), // 지점1
                 LatLng(37.55170655946639, 127.10151707354679), // 지점2
@@ -1624,6 +1800,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 정상
         Course(
             name = "정상 ~ 중곡동출발지점",
+            time = 51,
+            distance = 2200,
             points = listOf( // 아차산중곡동코스+아차산정상길코스5
                 LatLng(37.56238784437634, 127.09617797062278), // 중곡동 출발
                 LatLng(37.56225070721982, 127.09585239145795), // 지점1
@@ -1673,6 +1851,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "정상 ~ 해맞이길출발지점",
+            time = 74,
+            distance = 3100,
             points = listOf( // 아차산해맞이길코스+아차산정상길코스4+아차산정상길코스5
                 LatLng(37.556149253255256, 127.09517684687525), // 해맞이길 출발
                 LatLng(37.55627064332638, 127.09547974322237), // 지점1
@@ -1732,6 +1912,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "정상 ~ 구의동출발지점(고구려코스)",
+            time = 76,
+            distance = 3300,
             points = listOf( // 아차산고구려정길코스(전체)+아차산정상길코스3+아차산정상길코스4+아차산정상길코스5
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점(1)
@@ -1799,6 +1981,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "정상 ~ 구의동출발지점(구의동코스)",
+            time = 81,
+            distance = 3400,
             points = listOf( // 아차산구의동코스+고구려정길(2)+아차산정상길코스3+아차산정상길코스4+아차산정상길코스5
                 LatLng(37.55438856103244, 127.0970136480338), // 구의동 출발
                 LatLng(37.55482922916548, 127.09800730693125), // 지점1
@@ -1859,6 +2043,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "정상 ~ 정상길출발지점",
+            time = 76,
+            distance = 3400,
             points = listOf( // 아차산정상길코스1(~산성길정상)+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4+아차산정상길코스5
                 LatLng(37.552661018633124, 127.09957468886509), // 정상길 출발
                 LatLng(37.55292223128744, 127.09966557199391), // 지점1
@@ -1924,6 +2110,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "정상 ~ 산성길출발지점",
+            time = 83,
+            distance = 3400,
             points = listOf( // 아차산성길코스(전체)+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4+아차산정상길코스5
                 LatLng(37.551861745076486, 127.10437194404655), // 산성길 출발
                 LatLng(37.55225860528677, 127.10389436061176), // 지점1
@@ -2003,6 +2191,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         ),
         Course(
             name = "정상 ~ 광장동출발지점",
+            time = 96,
+            distance = 3800,
             points = listOf( // 아차산광장동+산성길+아차산정상길코스2+아차산정상길코스3+아차산정상길코스4+아차산정상길코스5
                 LatLng(37.5513775739213, 127.10165808627804), // 광장동 출발
                 LatLng(37.55164343859453, 127.10157640090205), // 지점1
@@ -2115,11 +2305,11 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         LatLng(37.55867030411321, 127.10263283725347) to listOf(3, 5), // 고구려 정길 정상
         LatLng(37.5549434850143, 127.10399994315316)  to listOf(6, 7), // 광장동 코스 정상
         LatLng(37.55788978681432, 127.10395310824592) to listOf(5, 7), // 산성길 정상
-        LatLng(37.57105576028153, 127.09576179734566) to listOf()// 정상
+        LatLng(37.57105576028153, 127.09576179734566) to listOf(1, 7)// 정상
     )
 
     // 출발 지점 정의 (각 코스의 첫 좌표)
-    private val startingPoints = titleCourses.map { it.first() }
+    private val startingPoints = titleCourses.map { it.points.first() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -2128,10 +2318,19 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 현재 코스 표시 TextView 초기화
         currentCourseTextView = findViewById(R.id.current_course_text)
 
+
         // Reset 버튼 연결
         val resetButton: Button = findViewById(R.id.reset_button)
         resetButton.setOnClickListener {
             resetMap()
+        }
+
+        // change_course_button 버튼 연결
+        changeCourseButton = findViewById(R.id.change_course_button)
+        changeCourseButton.setOnClickListener {
+            currentIntersection?.let { intersection ->
+                showCourseChangeDialog(intersection)
+            }
         }
 
         val fm = supportFragmentManager
@@ -2140,10 +2339,27 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
                 fm.beginTransaction().add(R.id.map_fragment, it).commit()
             }
         mapFragment.getMapAsync(this)
+
+        locationSource = FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int,
+                                            permissions: Array<String>,
+                                            grantResults: IntArray) {
+        if (locationSource.onRequestPermissionsResult(requestCode, permissions,
+                grantResults)) {
+            if (!locationSource.isActivated) { // 권한 거부됨
+                naverMap.locationTrackingMode = LocationTrackingMode.None
+            }
+            return
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     override fun onMapReady(naverMap: NaverMap) {
         this.naverMap = naverMap
+        naverMap.locationSource = locationSource
+        naverMap.locationTrackingMode = LocationTrackingMode.NoFollow
 
         // 지도 초기 위치
         val initialPosition = LatLng(37.562367, 127.102649)
@@ -2152,11 +2368,130 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 초기 코스 선택 Dialog
         showInitialCourseSelectionDialog()
 
+        // GPS 리스너 추가
+        naverMap.addOnLocationChangeListener { location ->
+            val currentLocation = LatLng(location.latitude, location.longitude)
+            checkUserProximityToIntersection(currentLocation)
+        }
+
+        val uiSettings: UiSettings = naverMap.uiSettings
+        uiSettings.isLocationButtonEnabled = true
+
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "교차점 알림 채널"
+            val descriptionText = "교차점 근처에 접근했을 때 알림을 제공합니다."
+            val importance = NotificationManager.IMPORTANCE_HIGH
+
+            // 🔥 NotificationChannel 생성
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun sendIntersectionNotification() {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("코스를 변경하시겠습니까?")
+            .setContentText("교차점 근처에 있습니다. 코스를 변경하시겠습니까?")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, builder.build())
+    }
+
+
+    private var isNotifiedForCurrentIntersection: Boolean = false
+
+    private fun checkUserProximityToIntersection(currentLocation: LatLng) {
+        lastUserLocation = currentLocation
+
+        val nearbyIntersections = intersections.keys.map { intersection ->
+            val distance = calculateDistance(currentLocation, intersection)
+            Pair(intersection, distance)
+        }.filter { it.second <= 50 }
+
+        // 교차점이 하나도 없으면 버튼 숨김
+        if (nearbyIntersections.isEmpty()) {
+            hideChangeCourseButton() // 50m 밖으로 벗어나면 버튼 숨김
+            currentIntersection = null
+            return
+        }
+
+        // 가장 가까운 교차점 선택
+        val closestIntersection = nearbyIntersections.minByOrNull { it.second }?.first
+
+        if (closestIntersection != null && currentIntersection != closestIntersection) {
+            currentIntersection = closestIntersection // 교차점을 새로 설정
+            isNotifiedForCurrentIntersection = false // 새로운 교차점에 대해 알림 가능
+        }
+
+        if (closestIntersection != null && !isNotifiedForCurrentIntersection) {
+            isNotifiedForCurrentIntersection = true
+            sendIntersectionNotification()
+            showCourseChangeDialog(closestIntersection)
+        }
+
+        // **50m 이내에 있으면 버튼 표시**
+        if (closestIntersection != null) {
+            showChangeCourseButton()
+        }
+    }
+
+
+    private fun calculateDistance(point1: LatLng, point2: LatLng): Double {
+        val radiusOfEarthKm = 6371.0
+        val dLat = Math.toRadians(point2.latitude - point1.latitude)
+        val dLng = Math.toRadians(point2.longitude - point1.longitude)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(point1.latitude)) * Math.cos(Math.toRadians(point2.latitude)) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return radiusOfEarthKm * c * 1000 // 거리 (m) 반환
+    }
+
+    private fun showCourseChangeDialog(intersection: LatLng) {
+        AlertDialog.Builder(this)
+            .setTitle("코스를 변경하시겠습니까?")
+            .setMessage("교차점 근처에 있습니다. 코스를 변경하시겠습니까?")
+            .setPositiveButton("예") { _, _ ->
+                showIntersectionOptions(intersection) // 교차점 옵션 표시
+                isAskingForCourseChange = false
+            }
+            .setNegativeButton("아니오") { _, _ ->
+                isAskingForCourseChange = false
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun showChangeCourseButton() {
+        val changeCourseButton: Button = findViewById(R.id.change_course_button)
+        changeCourseButton.visibility = View.VISIBLE
+    }
+
+    private fun hideChangeCourseButton() {
+        val changeCourseButton: Button = findViewById(R.id.change_course_button)
+        changeCourseButton.visibility = View.GONE
+    }
+
+    @SuppressLint("SetTextI18n")
     private fun showInitialCourseSelectionDialog() {
-        val options = titleCourses.mapIndexed { index, _ ->
-            "${courseNames[index]} "
+        val options = titleCourses.map {course->
+            """
+    📍코스: ${course.name}
+    📏거리: ${course.distance}m  
+    ⏱️예상 시간: ${course.time}분
+    ──────────────
+    """.trimIndent()
         }.toTypedArray()
 
         AlertDialog.Builder(this)
@@ -2164,6 +2499,13 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             .setItems(options) { _, which ->
                 currentCourseIndex = which
                 displayCourseWithIntersections(currentCourseIndex)
+                // 코스 이름, 거리, 소요 시간을 TextView에 표시
+                val selectedCourse = titleCourses[which]
+                currentCourseTextView.text = """
+            현재 코스: ${selectedCourse.name}
+
+            📏거리: ${selectedCourse.distance}m  /⏱️예상 시간: ${selectedCourse.time}분
+        """.trimIndent()
             }
             .setCancelable(false)
             .show()
@@ -2176,8 +2518,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 선택된 코스를 가져옴
         val selectedCourse = titleCourses[courseIndex]
         currentPath = PathOverlay().apply {
-            coords = selectedCourse
-            color = 0xAA00FF00.toInt()
+            coords = selectedCourse.points
+            color = 0xAA00FF00.toInt() // 경로 색상 (초록색)
             map = naverMap
         }
 
@@ -2186,24 +2528,30 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         activeMarkers.clear()
 
         // 교차점 마커 추가 (현재 선택된 코스의 교차점만 추가)
-        selectedCourse.forEach { latLng ->
+        selectedCourse.points.forEach { latLng ->
             if (intersections.containsKey(latLng)) {
                 val marker = Marker().apply {
                     position = latLng
                     map = naverMap
-                    icon = Marker.DEFAULT_ICON
-                    setOnClickListener {
-                        showIntersectionOptions(latLng)
-                        true
-                    }
+                    icon = Marker.DEFAULT_ICON // 기본 아이콘으로 표시
                 }
                 activeMarkers.add(marker)
             }
         }
+
+        // **코스 이름, 거리, 소요 시간을 TextView에 표시**
+        currentCourseTextView.text = """
+        현재 코스: ${selectedCourse.name}
+
+        📏거리: ${selectedCourse.distance}m  / ⏱️예상 시간: ${selectedCourse.time}분
+    """.trimIndent()
     }
 
     private fun showIntersectionOptions(intersection: LatLng) {
-        val options = arrayOf("등산", "하산")
+        val options = arrayOf(
+            "🚶‍♂️ 등산 - 새로운 코스로 이동합니다.",
+            "⬇️ 하산 - 하산 경로로 이동합니다."
+        )
         AlertDialog.Builder(this)
             .setTitle("선택하세요")
             .setItems(options) { _, which ->
@@ -2216,19 +2564,22 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun showAscendingCourses(intersection: LatLng) {
-        // 교차점을 시작점으로 하는 등산 코스를 필터링
         val availableCourses = ascendingCourses.filter { it.points.first() == intersection }
         if (availableCourses.isEmpty()) {
             Toast.makeText(this, "이 교차점에서 시작하는 등산 코스가 없습니다.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 사용자에게 선택할 코스 옵션 생성
-        val courseOptions = availableCourses.mapIndexed { index, course ->
-            "코스 ${index + 1}: ${course.name}  " // 코스의 길이와 난이도 추가예정!!!
+        val courseOptions = availableCourses.map { course ->
+            """
+    📍코스: ${course.name}
+    
+    📏거리: ${course.distance}m  
+    ⏱️예상 시간: ${course.time}분
+    ──────────────
+    """.trimIndent()
         }.toTypedArray()
 
-        // 선택 가능한 코스를 AlertDialog로 표시
         AlertDialog.Builder(this)
             .setTitle("등산 코스를 선택하세요")
             .setItems(courseOptions) { _, which ->
@@ -2238,9 +2589,8 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun showDescendingCourses(intersection: LatLng) {
-        // 교차점을 끝점으로 하고 시작점이 startingPoints에 포함된 코스 필터링
-        val availableCourses = decendingCourses.filter { course ->
-            course.points.last() == intersection && startingPoints.contains(course.points.first())
+        val availableCourses = decendingCourses.filter {
+                course -> course.points.last() == intersection && startingPoints.contains(course.points.first())
         }
 
         if (availableCourses.isEmpty()) {
@@ -2248,9 +2598,14 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             return
         }
 
-        // 사용자에게 선택할 코스 옵션을 제공
-        val courseOptions = availableCourses.mapIndexed { index, course ->
-            "코스 ${index + 1}: ${course.name}" // 코스 이름 표시
+        val courseOptions = availableCourses.map { course ->
+            """
+    📍코스: ${course.name}
+    
+    📏거리: ${course.distance}m  
+    ⏱️예상 시간: ${course.time}분
+    ──────────────
+    """.trimIndent()
         }.toTypedArray()
 
         AlertDialog.Builder(this)
@@ -2261,6 +2616,7 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
             .show()
     }
 
+    @SuppressLint("SetTextI18n")
     private fun displayAscendingCourse(course: List<LatLng>, courseName: String) {
         // 기존 경로 제거
         currentPath?.map = null
@@ -2272,7 +2628,7 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 새로운 경로 표시
         currentPath = PathOverlay().apply {
             coords = course
-            color = 0xAA0000FF.toInt() // 파란색으로 표시
+            color = 0xAA0000FF.toInt() // 경로 색상 (파란색)
             map = naverMap
         }
 
@@ -2282,19 +2638,23 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
                 val marker = Marker().apply {
                     position = latLng
                     map = naverMap
-                    setOnClickListener {
-                        showIntersectionOptions(latLng)
-                        true
-                    }
+                    icon = Marker.DEFAULT_ICON // 기본 아이콘으로 표시
                 }
                 activeMarkers.add(marker)
             }
         }
 
-        // 현재 코스 텍스트 업데이트
-        currentCourseTextView.text = "현재 코스: $courseName"
+        val selectedCourse = titleCourses.firstOrNull { it.name == courseName }
+        if (selectedCourse != null) {
+            currentCourseTextView.text = """
+            현재 코스: ${selectedCourse.name}
+
+            📏거리: ${selectedCourse.distance}m  / ⏱️예상 시간: ${selectedCourse.time}분
+        """.trimIndent()
+        }
     }
 
+    @SuppressLint("SetTextI18n")
     private fun displayDescendingCourse(course: List<LatLng>, courseName: String) {
         // 기존 경로 제거
         currentPath?.map = null
@@ -2306,7 +2666,7 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         // 새로운 하산 경로 표시
         currentPath = PathOverlay().apply {
             coords = course
-            color = 0xAAFF0000.toInt() // 빨간색으로 표시
+            color = 0xAAFF0000.toInt() // 경로 색상 (빨간색)
             map = naverMap
         }
 
@@ -2316,17 +2676,20 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
                 val marker = Marker().apply {
                     position = latLng
                     map = naverMap
-                    setOnClickListener {
-                        showIntersectionOptions(latLng)
-                        true
-                    }
+                    icon = Marker.DEFAULT_ICON // 기본 아이콘으로 표시
                 }
                 activeMarkers.add(marker)
             }
         }
 
-        // 현재 코스 텍스트 업데이트
-        currentCourseTextView.text = "현재 코스: $courseName"
+        val selectedCourse = titleCourses.firstOrNull { it.name == courseName }
+        if (selectedCourse != null) {
+            currentCourseTextView.text = """
+            현재 코스: ${selectedCourse.name}
+
+            📏거리: ${selectedCourse.distance}m  / ⏱️예상 시간: ${selectedCourse.time}분
+        """.trimIndent()
+        }
     }
 
     private fun resetMap() {

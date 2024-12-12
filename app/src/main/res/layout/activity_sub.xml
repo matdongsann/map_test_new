@@ -34,4 +34,18 @@
         android:layout_margin="16dp"
         android:text="Reset" />
 
+    <Button
+        android:id="@+id/change_course_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:text="코스를 변경하시겠습니까?"
+        android:background="@drawable/rounded_button"
+        android:padding="12dp"
+        android:textColor="@android:color/white"
+        android:visibility="gone" />
+
 </RelativeLayout>

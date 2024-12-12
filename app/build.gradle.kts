@@ -1,3 +1,6 @@
+import com.android.build.api.dsl.AaptOptions
+import com.android.build.api.dsl.AndroidResources
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -26,6 +29,8 @@ android {
             )
         }
     }
+
+    androidResources
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -33,6 +38,7 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
 }
 
 dependencies {
