@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -2343,6 +2344,12 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment.getMapAsync(this)
 
         locationSource = FusedLocationSource(this, LOCATION_PERMISSION_REQUEST_CODE)
+
+        // 알림 채널 생성
+        createNotificationChannel()
+
+        // 예시 알림 생성 코드
+        sendIntersectionNotification()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int,
@@ -2383,27 +2390,43 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // 🔥 기존 알림 채널 삭제 (필요할 경우)
+            notificationManager.deleteNotificationChannel(CHANNEL_ID)
+
             val name = "교차점 알림 채널"
             val descriptionText = "교차점 근처에 접근했을 때 알림을 제공합니다."
             val importance = NotificationManager.IMPORTANCE_HIGH
 
-            // 🔥 NotificationChannel 생성
+            // 🔥 기본 알림음 설정
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
+
+            // 알림 채널 생성
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
+                setSound(soundUri, audioAttributes) // 기본 알림음 추가
             }
 
-            val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
 
+
     private fun sendIntersectionNotification() {
+        // 🔥 기본 알림음 설정
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_notification) // 알림 아이콘
             .setContentTitle("코스를 변경하시겠습니까?")
             .setContentText("교차점 근처에 있습니다. 코스를 변경하시겠습니까?")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setSound(soundUri) // 기본 알림음 추가
             .setAutoCancel(true)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -2419,7 +2442,7 @@ class SubActivity : AppCompatActivity(), OnMapReadyCallback {
         val nearbyIntersections = intersections.keys.map { intersection ->
             val distance = calculateDistance(currentLocation, intersection)
             Pair(intersection, distance)
-        }.filter { it.second <= 50 }
+        }.filter { it.second <= 100 }
 
         // 교차점이 하나도 없으면 버튼 숨김
         if (nearbyIntersections.isEmpty()) {
